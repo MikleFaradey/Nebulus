@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-AUV Survey GUI — табличные параметры + симуляция, переходные с 5% трубкой, Mp и Ts.
+AUV Survey GUI — табличные параметры + симуляция.
+Покрытие: рисуются прямоугольники свата для КАЖДОГО прямого галса (полная зона),
+плюс поверх — реальные участки съёмки (обрезаны буфером) и метки START/END.
+Переходные: «трубка» ±5%, Mp и Ts.
 Зависимости: PyQt6, matplotlib
 pip install pyqt6 matplotlib
 """
@@ -19,7 +22,6 @@ from matplotlib.figure import Figure
 # ---- PyQt6 ----
 from PyQt6 import QtWidgets, QtGui, QtCore
 
-# ---- Симуляция (ядро) ----
 import matplotlib.patches as mpatches
 
 try:
@@ -234,7 +236,7 @@ class MarshevPD:
 
 
 # =========================
-# Утилиты для маршрута/SSS
+# Утилиты SSS/маршрута
 # =========================
 def sss_swath_and_spacing(R, h, beta_deg=4.0, cross_overlap=0.15) -> Tuple[float, float]:
     if R <= h:
@@ -248,8 +250,7 @@ def sss_swath_and_spacing(R, h, beta_deg=4.0, cross_overlap=0.15) -> Tuple[float
 
 def build_lawnmower_in_rect_from_corner(rect, lane_spacing, heading_deg, margin=0.0, eps=1e-6):
     xmin, ymin, W, H = rect
-    xmin += margin
-    ymin += margin
+    xmin += margin; ymin += margin
     xmax = xmin + (W - 2 * margin)
     ymax = ymin + (H - 2 * margin)
     if xmax <= xmin or ymax <= ymin:
@@ -258,49 +259,37 @@ def build_lawnmower_in_rect_from_corner(rect, lane_spacing, heading_deg, margin=
     th = math.radians(heading_deg)
     vx, vy = math.cos(th), math.sin(th)
     nx, ny = -vy, vx
-    if nx < 0.0:
-        nx, ny = -nx, -ny
+    if nx < 0.0: nx, ny = -nx, -ny
     corners = [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
     proj = [(cx - p0[0]) * nx + (cy - p0[1]) * ny for (cx, cy) in corners]
     d_min, d_max = min(proj), max(proj)
     delta = max(1e-9, float(lane_spacing))
 
     def sort_left_first(A, B, eps=1e-9):
-        if A[0] < B[0] - eps:
-            return (A, B)
-        if A[0] > B[0] + eps:
-            return (B, A)
+        if A[0] < B[0] - eps: return (A, B)
+        if A[0] > B[0] + eps: return (B, A)
         return (A, B) if A[1] <= B[1] else (B, A)
 
     def clip_line(d):
-        Px = p0[0] + d * nx
-        Py = p0[1] + d * ny
+        Px = p0[0] + d * nx; Py = p0[1] + d * ny
         if abs(vx) < eps:
-            if Px < xmin - eps or Px > xmax + eps:
-                return None
+            if Px < xmin - eps or Px > xmax + eps: return None
             tx_min, tx_max = -math.inf, math.inf
         else:
-            t1 = (xmin - Px) / vx
-            t2 = (xmax - Px) / vx
+            t1 = (xmin - Px) / vx; t2 = (xmax - Px) / vx
             tx_min, tx_max = (min(t1, t2), max(t1, t2))
         if abs(vy) < eps:
-            if Py < ymin - eps or Py > ymax + eps:
-                return None
+            if Py < ymin - eps or Py > ymax + eps: return None
             ty_min, ty_max = -math.inf, math.inf
         else:
-            t3 = (ymin - Py) / vy
-            t4 = (ymax - Py) / vy
+            t3 = (ymin - Py) / vy; t4 = (ymax - Py) / vy
             ty_min, ty_max = (min(t3, t4), max(t3, t4))
-        t_enter = max(tx_min, ty_min)
-        t_exit = min(tx_max, ty_max)
-        if not (t_enter < t_exit):
-            return None
+        t_enter = max(tx_min, ty_min); t_exit = min(tx_max, ty_max)
+        if not (t_enter < t_exit): return None
         A = (Px + t_enter * vx, Py + t_enter * vy)
         B = (Px + t_exit * vx, Py + t_exit * vy)
-        if (A[0] - B[0]) ** 2 + (A[1] - B[1]) ** 2 < (10 * eps) ** 2:
-            return None
-        A, B = sort_left_first(A, B)
-        return (A, B)
+        if (A[0]-B[0])**2 + (A[1]-B[1])**2 < (10*eps)**2: return None
+        A, B = sort_left_first(A, B); return (A, B)
 
     def canonical(seg):
         A, B = seg
@@ -308,80 +297,62 @@ def build_lawnmower_in_rect_from_corner(rect, lane_spacing, heading_deg, margin=
         b = (round(B[0], 9), round(B[1], 9))
         return a, b
 
-    segments = {}
-    k = 0
+    segments = {}; k = 0
     while True:
-        d_list = [0.0] if k == 0 else [k * delta, -k * delta]
+        d_list = [0.0] if k == 0 else [k*delta, -k*delta]
         any_added = False
         for d in d_list:
-            if d < d_min - eps or d > d_max + eps:
-                continue
+            if d < d_min - eps or d > d_max + eps: continue
             seg = clip_line(d)
-            if seg is None:
-                continue
+            if seg is None: continue
             key = canonical(seg)
-            if key in segments:
-                continue
-            segments[key] = seg
-            any_added = True
-        if not any_added and (k * delta > max(abs(d_min), abs(d_max)) + 5 * delta):
-            break
+            if key in segments: continue
+            segments[key] = seg; any_added = True
+        if not any_added and (k*delta > max(abs(d_min), abs(d_max)) + 5*delta): break
         k += 1
-        if k > 10000:
-            break
+        if k > 10000: break
 
-    if not segments:
-        return [p0]
+    if not segments: return [p0]
 
     def seg_d(seg):
         A, B = seg
-        cx, cy = (0.5 * (A[0] + B[0]), 0.5 * (A[1] + B[1]))
-        return (cx - p0[0]) * nx + (cy - p0[1]) * ny
+        cx, cy = (0.5*(A[0]+B[0]), 0.5*(A[1]+B[1]))
+        return (cx - p0[0])*nx + (cy - p0[1])*ny
 
-    segs = list(segments.values())
-    segs.sort(key=seg_d)
+    segs = list(segments.values()); segs.sort(key=seg_d)
 
-    def dist2(P, Q):
-        return (P[0] - Q[0]) ** 2 + (P[1] - Q[1]) ** 2
+    def dist2(P, Q): return (P[0]-Q[0])**2 + (P[1]-Q[1])**2
 
     waypoints = [p0]
     first_idx = min(range(len(segs)), key=lambda i: dist2(p0, segs[i][0]))
-    A0, B0 = segs[first_idx]
-    waypoints.extend([A0, B0])
-    cur = B0
+    A0, B0 = segs[first_idx]; waypoints.extend([A0, B0]); cur = B0
     for idx, seg in enumerate(segs):
-        if idx == first_idx:
-            continue
+        if idx == first_idx: continue
         A, B = seg
         if dist2(cur, A) <= dist2(cur, B):
-            waypoints.extend([A, B])
-            cur = B
+            waypoints.extend([A, B]); cur = B
         else:
-            waypoints.extend([B, A])
-            cur = A
+            waypoints.extend([B, A]); cur = A
     return waypoints
 
 
 def los_pure_pursuit(pos, wp_i, wp_j, Ld):
     x, y = pos
-    x1, y1 = wp_i
-    x2, y2 = wp_j
+    x1, y1 = wp_i; x2, y2 = wp_j
     vx, vy = (x2 - x1), (y2 - y1)
-    seg_len2 = vx * vx + vy * vy
+    seg_len2 = vx*vx + vy*vy
     if seg_len2 < 1e-9:
         return 0.0, (x2, y2), 0.0
-    t = ((x - x1) * vx + (y - y1) * vy) / seg_len2
+    t = ((x - x1)*vx + (y - y1)*vy) / seg_len2
     t_clamp = max(0.0, min(1.0, t))
-    xs = x1 + t_clamp * vx
-    ys = y1 + t_clamp * vy
+    xs = x1 + t_clamp*vx; ys = y1 + t_clamp*vy
     seg_len = math.sqrt(seg_len2)
-    s = min(t_clamp * seg_len + Ld, seg_len)
-    xt = x1 + (s / seg_len) * vx
-    yt = y1 + (s / seg_len) * vy
+    s = min(t_clamp*seg_len + Ld, seg_len)
+    xt = x1 + (s/seg_len)*vx; yt = y1 + (s/seg_len)*vy
     psi_ref = math.atan2(yt - y, xt - x)
     ex, ey = x - xs, y - ys
-    nx, ny = -vy / seg_len, vx / seg_len
-    e_ct = ex * nx + ey * ny
+    nx, ny = -vy/seg_len, vx/seg_len
+    e_ct = ex*nx + ey*ny
     return psi_ref, (xt, yt), e_ct
 
 
@@ -405,8 +376,7 @@ def send_camera_cmd(event, port="/dev/ttyUSB0", baudrate=9600, timeout=1.0):
         return True
     try:
         with serial.Serial(port=port, baudrate=baudrate, timeout=timeout) as ser:
-            ser.write(cmd)
-            ser.flush()
+            ser.write(cmd); ser.flush()
         print(f"[CAMERA] {event}: sent {cmd.hex().upper()} to {port}")
         return True
     except Exception as e:
@@ -414,7 +384,9 @@ def send_camera_cmd(event, port="/dev/ttyUSB0", baudrate=9600, timeout=1.0):
         return False
 
 
-def draw_cov_rectangle(ax, S, E, width, color="#6EC1FF", alpha=0.15):
+def draw_cov_rectangle(ax, S, E, width, color="#6EC1FF", alpha=0.15, label=None):
+    import math
+    import matplotlib.patches as mpatches
     dx, dy = E[0] - S[0], E[1] - S[1]
     L = math.hypot(dx, dy)
     if L < 1e-6:
@@ -426,13 +398,19 @@ def draw_cov_rectangle(ax, S, E, width, color="#6EC1FF", alpha=0.15):
     p2 = (E[0] + nx * w2, E[1] + ny * w2)
     p3 = (E[0] - nx * w2, E[1] - ny * w2)
     p4 = (S[0] - nx * w2, S[1] - ny * w2)
-    ax.add_patch(
-        mpatches.Polygon([p1, p2, p3, p4], closed=True, facecolor=color, edgecolor="none", alpha=alpha)
-    )
+    ax.add_patch(mpatches.Polygon(
+        [p1, p2, p3, p4],
+        closed=True,
+        facecolor=color,
+        edgecolor="none",
+        alpha=alpha,
+        label=label,            # <<< вот это ключевое
+    ))
+
 
 
 # =========================
-# Результаты марш-сценария для GUI
+# Результаты симуляции
 # =========================
 @dataclass
 class SimResult:
@@ -454,19 +432,13 @@ def run_simulation(p: Dict[str, Any]) -> SimResult:
     rect = (p["rect_x"], p["rect_y"], p["rect_w"], p["rect_h"])
     heading_deg = p["heading_deg"]
 
-    h_alt = p["h_alt"]
-    R_slant = p["R_slant"]
-    beta_deg = p["beta_deg"]
-    cross_overlap = p["cross_overlap"]
-    along_overlap = p["along_overlap"]
+    h_alt = p["h_alt"]; R_slant = p["R_slant"]
+    beta_deg = p["beta_deg"]; cross_overlap = p["cross_overlap"]; along_overlap = p["along_overlap"]
 
     # Скорости/ограничения
-    U_cruise = p["U_cruise"]
-    U_acq = p["U_acq"]
-    lookahead = p["lookahead"]
-    switch_R = p["switch_R"]
-    a_lat_max = p["a_lat_max"]
-    dt = p["dt"]
+    U_cruise = p["U_cruise"]; U_acq = p["U_acq"]
+    lookahead = p["lookahead"]; switch_R = p["switch_R"]
+    a_lat_max = p["a_lat_max"]; dt = p["dt"]
 
     # Ошибки
     use_5pct_error_psi = p["use_5pct_error_psi"]
@@ -474,72 +446,46 @@ def run_simulation(p: Dict[str, Any]) -> SimResult:
     use_5pct_error_u = p["use_5pct_error_u"]
     meas_scale = p["meas_scale"]
 
-    # Параметры yaw (курс)
+    # Yaw
     yaw_kwargs = dict(
-        Jy=p["Jy"], L55=p["L55"],
-        Cwy1=p["Cwy1"], Cwy2=p["Cwy2"],
-        Tdv=p["Tdv"], Kdv=p["Kdv_yaw"], b=p["b"],
-        Umax=p["Umax_yaw"],
+        Jy=p["Jy"], L55=p["L55"], Cwy1=p["Cwy1"], Cwy2=p["Cwy2"],
+        Tdv=p["Tdv"], Kdv=p["Kdv_yaw"], b=p["b"], Umax=p["Umax_yaw"],
         K1=p["K1"], K2=p["K2"],
         Mdist=p["Mdist"],
-        Fcur_yaw_mag=p["Fcur_yaw_mag"],
-        Fcur_yaw_dir_deg=p["Fcur_yaw_dir_deg"],
-        l_yaw_arm=p["l_yaw_arm"],
-        use_5pct_error_psi=use_5pct_error_psi,
-        use_5pct_error_r=use_5pct_error_r,
-        meas_scale=meas_scale,
-        dt=dt,
+        Fcur_yaw_mag=p["Fcur_yaw_mag"], Fcur_yaw_dir_deg=p["Fcur_yaw_dir_deg"], l_yaw_arm=p["l_yaw_arm"],
+        use_5pct_error_psi=use_5pct_error_psi, use_5pct_error_r=use_5pct_error_r,
+        meas_scale=meas_scale, dt=dt
     )
-
-    # Параметры surge (марш)
+    # Surge
     surge_kwargs = dict(
-        m=p["m"], lam11=p["lam11"],
-        Cxu1=p["Cxu1"], Cxu2=p["Cxu2"],
-        Tdx=p["Tdx"], Kdv=p["Kdv_surge"],
-        Umax=p["Umax_surge"],
+        m=p["m"], lam11=p["lam11"], Cxu1=p["Cxu1"], Cxu2=p["Cxu2"],
+        Tdx=p["Tdx"], Kdv=p["Kdv_surge"], Umax=p["Umax_surge"],
         Kp=p["Kp"], Kd=p["Kd"], at=p["at"],
         wn_ref=p["wn_ref"], zeta_ref=p["zeta_ref"],
         Ucur_mag=p["Ucur_mag"], Ucur_dir_deg=p["Ucur_dir_deg"],
-        use_5pct_error_u=use_5pct_error_u,
-        meas_scale=meas_scale,
-        dt=dt,
+        use_5pct_error_u=p["use_5pct_error_u"], meas_scale=meas_scale, dt=dt
     )
 
-    # Доминирующее время регулирования (оценка)
+    # Доминирующее время (оценка)
     def estimate_ts_yaw(sys: Kurs, psi_step_deg=1.0, tol=0.02, Tmax=8.0):
-        tloc = 0.0
-        target = psi_step_deg
-        reached = False
-        ts = Tmax
+        tloc = 0.0; target = psi_step_deg; reached = False; ts = Tmax
         while tloc < Tmax:
             tloc += sys.dt
             y = sys.step(target)
             err = abs(target - y)
-            if not reached and err <= tol * abs(target):
-                reached = True
-                ts = tloc
-            if reached and err > tol * abs(target):
-                reached = False
-                ts = Tmax
+            if not reached and err <= tol*abs(target): reached = True; ts = tloc
+            if reached and err > tol*abs(target): reached = False; ts = Tmax
         return ts
 
     def estimate_ts_surge(sys: MarshevPD, u_step=1.0, tol=0.02, Tmax=12.0):
-        tloc = 0.0
-        target = u_step  # ground speed
-        reached = False
-        ts = Tmax
-        psi0 = 0.0
+        tloc = 0.0; target = u_step; reached = False; ts = Tmax; psi0 = 0.0
         while tloc < Tmax:
             tloc += sys.dt
             y_rel = sys.step(target, psi=psi0)
             y_ground = max(0.0, y_rel + sys.Ucur_mag * math.cos(sys.Ucur_dir - psi0))
             err = abs(target - y_ground)
-            if not reached and err <= tol * abs(target):
-                reached = True
-                ts = tloc
-            if reached and err > tol * abs(target):
-                reached = False
-                ts = Tmax
+            if not reached and err <= tol*abs(target): reached = True; ts = tloc
+            if reached and err > tol*abs(target): reached = False; ts = Tmax
         return ts
 
     ts_yaw = estimate_ts_yaw(Kurs(**yaw_kwargs), psi_step_deg=1.0, Tmax=8.0)
@@ -560,22 +506,29 @@ def run_simulation(p: Dict[str, Any]) -> SimResult:
         spans_ = []
         for i in range(1, len(wps_list) - 1, 2):
             A = wps_list[i]; B = wps_list[i + 1]
-            L = math.hypot(B[0] - A[0], B[1] - A[1])
-            if L <= 2 * buf:
-                continue
-            dx = (B[0] - A[0]) / L; dy = (B[1] - A[1]) / L
-            S = (A[0] + dx * buf, A[1] + dy * buf)
-            E = (B[0] - dx * buf, B[1] - dy * buf)
+            L = math.hypot(B[0]-A[0], B[1]-A[1])
+            if L <= 2*buf: continue
+            dx = (B[0]-A[0]) / L; dy = (B[1]-A[1]) / L
+            S = (A[0] + dx*buf, A[1] + dy*buf)
+            E = (B[0] - dx*buf, B[1] - dy*buf)
             spans_.append((S, E))
         return spans_
 
     acq_spans = build_acq_spans_on_straights(wps, turn_buffer)
 
-    # Подсчёты длин/времени
-    total_dist = sum(
-        math.hypot(wps[i + 1][0] - wps[i][0], wps[i + 1][1] - wps[i][1]) for i in range(len(wps) - 1)
-    )
-    span_len_total = sum(math.hypot(E[0] - S[0], E[1] - S[1]) for (S, E) in acq_spans)
+    # Расширенные данные по «отрезкам съёмки» для событий
+    spans_ex = []
+    for S, E in acq_spans:
+        dx, dy = E[0]-S[0], E[1]-S[1]
+        L = math.hypot(dx, dy)
+        if L < 1e-6: continue
+        ux, uy = dx/L, dy/L
+        spans_ex.append({"S": S, "E": E, "u": (ux, uy), "L": L,
+                         "start_fired": False, "end_fired": False})
+
+    # Подсчёты длины/времени
+    total_dist = sum(math.hypot(wps[i+1][0]-wps[i][0], wps[i+1][1]-wps[i][1]) for i in range(len(wps)-1))
+    span_len_total = sum(math.hypot(E[0]-S[0], E[1]-S[1]) for (S, E) in acq_spans)
     span_len_total = max(0.0, min(span_len_total, total_dist))
     T_nom = (span_len_total / max(1e-6, U_acq)) + ((total_dist - span_len_total) / max(1e-6, U_cruise))
     T_end = 1.25 * T_nom
@@ -587,34 +540,64 @@ def run_simulation(p: Dict[str, Any]) -> SimResult:
     # Начальная поза
     x, y = wps[0]
     if len(wps) >= 2:
-        dx0, dy0 = wps[1][0] - wps[0][0], wps[1][1] - wps[0][1]
+        dx0, dy0 = wps[1][0]-wps[0][0], wps[1][1]-wps[0][1]
         yaw.psi = math.atan2(dy0, dx0)
 
-    # Истории
+    # Истории и события
     xs, ys = [x], [y]
     psis_deg = [yaw.psi * RAD2DEG]
     us_ground = []
     e_ct_hist = [0.0]
     t_hist = [0.0]
+    camera_events: List[Tuple[str, Tuple[float, float], float]] = []
+    event_perp_tol = 2.0  # м
 
-    t = 0.0
-    i_seg = 0
-    max_steps = int(2.0 * T_end / dt) + 10000
-    steps = 0
-
+    # Для ground-вектора течения
     Ucx = surge.Ucur_mag * math.cos(surge.Ucur_dir)
     Ucy = surge.Ucur_mag * math.sin(surge.Ucur_dir)
 
-    while t < T_end and i_seg < len(wps) - 1 and steps < max_steps:
+    t = 0.0; i_seg = 0
+    x_prev, y_prev = x, y
+    max_steps = int(2.0 * T_end / dt) + 10000
+    steps = 0
+
+    while t < T_end and i_seg < len(wps)-1 and steps < max_steps:
         steps += 1
-        wp_i = wps[i_seg]; wp_j = wps[i_seg + 1]
+        wp_i = wps[i_seg]; wp_j = wps[i_seg+1]
         psi_ref, target_pt, e_ct = los_pure_pursuit((x, y), wp_i, wp_j, lookahead)
         xt, yt = target_pt
         d_target = math.hypot(xt - x, yt - y)
 
-        dist_to_end = math.hypot(wp_j[0] - x, wp_j[1] - y)
-        u_ref_ground = U_acq if (i_seg % 2 == 1) else U_cruise * max(0.3, min(1.0, dist_to_end / (2.0 * lookahead)))
+        # Детектор коридора съёмки и событий START/END
+        capturing = False
+        for sp in spans_ex:
+            Sx, Sy = sp["S"]; ux, uy = sp["u"]; L = sp["L"]
+            s_prev = (x_prev - Sx)*ux + (y_prev - Sy)*uy
+            s      = (x      - Sx)*ux + (y      - Sy)*uy
+            d_perp = abs((x - Sx)*(-uy) + (y - Sy)*ux)
 
+            if (not sp["start_fired"]) and (s_prev < 0.0) and (s >= 0.0) and (d_perp <= event_perp_tol):
+                send_camera_cmd("START")
+                camera_events.append(("START", (Sx, Sy), t))
+                sp["start_fired"] = True
+
+            if (not sp["end_fired"]) and (s_prev < L) and (s >= L) and (d_perp <= event_perp_tol):
+                send_camera_cmd("END")
+                Ex, Ey = sp["E"]
+                camera_events.append(("END", (Ex, Ey), t))
+                sp["end_fired"] = True
+
+            if (0.0 <= s <= L) and (d_perp <= event_perp_tol):
+                capturing = True
+
+        # Опорная наземная скорость
+        dist_to_end = math.hypot(wp_j[0]-x, wp_j[1]-y)
+        if capturing:
+            u_ref_ground = U_acq
+        else:
+            u_ref_ground = U_cruise * max(0.3, min(1.0, dist_to_end / (2.0 * lookahead)))
+
+        # Ограничение на поворотах
         epsi = wrap_rad(psi_ref - yaw.psi)
         u_ref_turn_cap = limit_speed_by_turn(epsi, d_target, yaw_sys=yaw, a_lat_max=a_lat_max, v_cap=u_ref_ground)
         u_ref_ground = max(0.0, min(u_ref_ground, u_ref_turn_cap))
@@ -628,10 +611,10 @@ def run_simulation(p: Dict[str, Any]) -> SimResult:
         Vy = surge.u * math.sin(psi) + Ucy
         v_ground = math.hypot(Vx, Vy)
 
-        x += Vx * dt
-        y += Vy * dt
+        x_prev, y_prev = x, y
+        x += Vx * dt; y += Vy * dt
 
-        if d_target < 2.0:
+        if dist_to_end < p["switch_R"]:
             i_seg += 1
 
         t += dt
@@ -642,25 +625,20 @@ def run_simulation(p: Dict[str, Any]) -> SimResult:
         t_hist.append(t)
 
     meta = dict(
-        W_use=W_use,
-        lane_spacing=lane_spacing,
-        s_ping=s_ping,
-        dt_ping=dt_ping,
-        turn_buffer=turn_buffer,
-        U_acq=U_acq,
-        U_cruise=U_cruise,
-        ts_yaw=ts_yaw,
-        ts_surge=ts_surge,
+        W_use=W_use, lane_spacing=lane_spacing, s_ping=s_ping, dt_ping=dt_ping,
+        turn_buffer=turn_buffer, U_acq=U_acq, U_cruise=U_cruise,
+        ts_yaw=ts_yaw, ts_surge=ts_surge
     )
 
     return SimResult(
-        xs=xs, ys=ys, wps=wps, rect=rect, acq_spans=acq_spans, camera_events=[],
-        t_hist=t_hist, psi_deg=psis_deg, u_ground=us_ground, e_ct_hist=e_ct_hist, meta=meta
+        xs=xs, ys=ys, wps=wps, rect=rect, acq_spans=acq_spans,
+        camera_events=camera_events, t_hist=t_hist, psi_deg=psis_deg,
+        u_ground=us_ground, e_ct_hist=e_ct_hist, meta=meta
     )
 
 
 # =========================
-# Переходные — расчёт + метрики (Mp, Ts, 5%-трубка)
+# Переходные — расчёт + метрики
 # =========================
 @dataclass
 class StepResponses:
@@ -680,37 +658,28 @@ class StepResponses:
 
 
 def _step_metrics(t: List[float], y: List[float], ref: List[float], tol=0.05) -> Tuple[Tuple[float, float], float, float | None]:
-    """
-    Возвращает:
-      (y_low, y_high), Mp_pct, Ts
-    где Ts — первое время, после которого |y-yr| <= tol*|yr| навсегда.
-    """
     if not t:
         return (0.0, 0.0), 0.0, None
-    yr = ref[-1]
-    eps = 1e-9
-    A = max(abs(yr), eps)  # для нормировки
+    yr = ref[-1]; eps = 1e-9
+    A = max(abs(yr), eps)
     y_low = yr - tol * A
     y_high = yr + tol * A
 
-    # Перерегулирование в сторону шага (знак учитываем)
     sgn = 1.0 if yr >= 0 else -1.0
     peak = max((yi - yr) * sgn for yi in y)
     Mp_pct = max(0.0, 100.0 * peak / A)
 
-    # Время установления (5%): первое t_i, что для всех j>=i выполнено |y-yr|<=0.05*|yr|
     Ts = None
     for i in range(len(t)):
         if all(abs(y[j] - yr) <= tol * A for j in range(i, len(t))):
-            Ts = t[i]
-            break
+            Ts = t[i]; break
     return (y_low, y_high), Mp_pct, Ts
 
 
 def compute_step_responses(p: Dict[str, Any]) -> StepResponses:
     dt = p["dt"]
 
-    # --- Yaw step ---
+    # Yaw
     yaw_kwargs = dict(
         Jy=p["Jy"], L55=p["L55"], Cwy1=p["Cwy1"], Cwy2=p["Cwy2"],
         Tdv=p["Tdv"], Kdv=p["Kdv_yaw"], b=p["b"], Umax=p["Umax_yaw"],
@@ -733,7 +702,7 @@ def compute_step_responses(p: Dict[str, Any]) -> StepResponses:
 
     yaw_band, yaw_Mp, yaw_Ts = _step_metrics(t_yaw, yaw_deg, yaw_ref, tol=0.05)
 
-    # --- Surge (ground speed) step ---
+    # Surge (ground)
     surge_kwargs = dict(
         m=p["m"], lam11=p["lam11"], Cxu1=p["Cxu1"], Cxu2=p["Cxu2"],
         Tdx=p["Tdx"], Kdv=p["Kdv_surge"], Umax=p["Umax_surge"],
@@ -745,7 +714,7 @@ def compute_step_responses(p: Dict[str, Any]) -> StepResponses:
     sys_surge = MarshevPD(**surge_kwargs)
     T_surge = max(dt, float(p["surge_step_T"]))
     amp_u = float(p["surge_step_amp_ground"])
-    psi_hold = 0.0  # фиксируем курс
+    psi_hold = 0.0
 
     t_surge = [0.0]
     ug0 = max(0.0, sys_surge.u + sys_surge.Ucur_mag * math.cos(sys_surge.Ucur_dir - psi_hold))
@@ -753,7 +722,7 @@ def compute_step_responses(p: Dict[str, Any]) -> StepResponses:
     tcur = 0.0
     while tcur < T_surge:
         tcur += dt
-        sys_surge.step(amp_u, psi=psi_hold)  # опорная — наземная скорость
+        sys_surge.step(amp_u, psi=psi_hold)
         ug = max(0.0, sys_surge.u + sys_surge.Ucur_mag * math.cos(sys_surge.Ucur_dir - psi_hold))
         t_surge.append(tcur); u_ground.append(ug); u_ref_ground.append(amp_u)
 
@@ -766,7 +735,7 @@ def compute_step_responses(p: Dict[str, Any]) -> StepResponses:
 
 
 # =========================
-# GUI: Таблица параметров + 6 графиков
+# GUI
 # =========================
 @dataclass
 class ParamRow:
@@ -841,7 +810,7 @@ def default_param_rows() -> List[ParamRow]:
         ParamRow("Ошибки", "use_5pct_error_u", "err u +5%", False, "bool", "-", "Ошибка измерения скорости"),
         ParamRow("Ошибки", "meas_scale", "meas_scale", 1.05, "float", "-", "Мультипликативный коэффициент"),
 
-        # Переходные процессы
+        # Переходные
         ParamRow("Переходные", "yaw_step_amp_deg", "Δψ_step", 1.0, "float", "°", "Амплитуда ступеньки по курсу"),
         ParamRow("Переходные", "yaw_step_T", "T_step(yaw)", 8.0, "float", "с", "Длительность переходной по курсу"),
         ParamRow("Переходные", "surge_step_amp_ground", "Δu_ground_step", 1.0, "float", "м/с", "Амплитуда ступеньки по наземной скорости"),
@@ -874,23 +843,32 @@ class ParamTable(QtWidgets.QTableWidget):
             cat_item = QtWidgets.QTableWidgetItem(r.category); cat_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
             key_item = QtWidgets.QTableWidgetItem(r.label); key_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
 
-            # Значение
             if r.ptype == "bool":
                 val_item = QtWidgets.QTableWidgetItem()
-                val_item.setFlags(QtCore.Qt.ItemFlag.ItemIsUserCheckable | QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+                val_item.setFlags(
+                    QtCore.Qt.ItemFlag.ItemIsUserCheckable
+                    | QtCore.Qt.ItemFlag.ItemIsEnabled
+                    | QtCore.Qt.ItemFlag.ItemIsSelectable
+                )
                 val_item.setCheckState(QtCore.Qt.CheckState.Checked if bool(r.value) else QtCore.Qt.CheckState.Unchecked)
                 val_item.setText("True" if bool(r.value) else "False")
             else:
                 val_item = QtWidgets.QTableWidgetItem(str(r.value))
-                val_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEditable | QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+                val_item.setFlags(
+                    QtCore.Qt.ItemFlag.ItemIsEditable
+                    | QtCore.Qt.ItemFlag.ItemIsEnabled
+                    | QtCore.Qt.ItemFlag.ItemIsSelectable
+                )
                 val_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
 
             unit_item = QtWidgets.QTableWidgetItem(r.unit); unit_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
             desc_item = QtWidgets.QTableWidgetItem(r.desc); desc_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
 
-            self.setItem(i, 0, cat_item); self.setItem(i, 1, key_item)
-            self.setItem(i, 2, val_item); self.setItem(i, 3, unit_item); self.setItem(i, 4, desc_item)
-
+            self.setItem(i, 0, cat_item)
+            self.setItem(i, 1, key_item)
+            self.setItem(i, 2, val_item)
+            self.setItem(i, 3, unit_item)
+            self.setItem(i, 4, desc_item)
             for c in range(self.columnCount()):
                 self.item(i, c).setData(QtCore.Qt.ItemDataRole.UserRole, r.key)
             self._key_index[i] = r.key
@@ -935,7 +913,8 @@ class ParamTable(QtWidgets.QTableWidget):
             val_item = self.item(r, 2)
             if spec.ptype == "bool":
                 checked = QtCore.Qt.CheckState.Checked if bool(d[key]) else QtCore.Qt.CheckState.Unchecked
-                val_item.setCheckState(checked); val_item.setText("True" if bool(d[key]) else "False")
+                val_item.setCheckState(checked)
+                val_item.setText("True" if bool(d[key]) else "False")
             else:
                 val_item.setText(str(d[key]))
 
@@ -1064,18 +1043,44 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(res.wps) >= 2:
             wx, wy = zip(*res.wps)
             ax.plot(wx, wy, ":", color="gray", alpha=0.7, linewidth=1.2, label="Маршрут (галсы)")
+
+        # === НОВОЕ: Полные прямоугольники покрытия по КАЖДОЙ прямой линии галса ===
+        # Используем ширину W_use и ПОЛНУЮ длину отрезка (без буфера), чтобы покрытие закрывало всю зону.
+        W_use = res.meta["W_use"]
+        drew_cov_label = False
+        for i in range(1, len(res.wps) - 1, 2):
+            A, B = res.wps[i], res.wps[i + 1]
+            label = "Покрытие свата (полная зона)" if not drew_cov_label else None
+            draw_cov_rectangle(ax, A, B, width=W_use, alpha=0.18, label=label)
+            drew_cov_label = True
+
+
+        # Траектория ПА поверх покрытий
         ax.plot(res.xs, res.ys, label="Траектория ПА (ground)")
 
-        drew_span_label = False
+        # Участки съёмки (реально активные, урезанные буфером) поверх
         for (S, E) in res.acq_spans:
-            draw_cov_rectangle(ax, S, E, width=res.meta["W_use"], alpha=0.15)
-            if not drew_span_label:
-                ax.plot([S[0], E[0]], [S[1], E[1]], linewidth=3.0, alpha=0.9,
-                        color="limegreen", label=f"Участок съёмки (U={res.meta['U_acq']:.1f} м/с)")
-                drew_span_label = True
-            else:
-                ax.plot([S[0], E[0]], [S[1], E[1]], linewidth=3.0, alpha=0.9, color="limegreen")
+            ax.plot([S[0], E[0]], [S[1], E[1]], linewidth=3.0, alpha=0.95, color="limegreen")
 
+        # Отметки START/END
+        added_start = added_end = False
+        for ev, P, _tt in res.camera_events:
+            if ev == "START":
+                ax.scatter(P[0], P[1], s=160, color="lime", marker="*", edgecolors="black",
+                           linewidths=1.1, label=None if added_start else "START")
+                added_start = True
+            elif ev == "END":
+                ax.scatter(P[0], P[1], s=160, color="crimson", marker="P", edgecolors="black",
+                           linewidths=1.1, label=None if added_end else "END")
+                added_end = True
+
+        # Старт/финиш маршрута
+        ax.scatter(res.wps[0][0], res.wps[0][1], s=250, color="red", marker="o",
+                   edgecolors="black", linewidths=1.5, label="Старт ПА")
+        ax.scatter(res.wps[-1][0], res.wps[-1][1], s=250, color="red", marker="X",
+                   edgecolors="black", linewidths=1.5, label="Финиш ПА")
+
+        # Оформление
         ax.set_aspect("equal", adjustable="box")
         ax.set_xlabel("x, м"); ax.set_ylabel("y, м")
         ax.set_title(
@@ -1083,7 +1088,9 @@ class MainWindow(QtWidgets.QMainWindow):
             f"U_acq={res.meta['U_acq']:.1f} м/с | buffer≈{res.meta['turn_buffer']:.1f} м | "
             f"t_s(yaw)≈{res.meta['ts_yaw']:.2f}s | t_s(surge)≈{res.meta['ts_surge']:.2f}s"
         )
-        ax.legend(loc="best"); self.tab_plan.canvas.draw()
+        # Примечание: если хочешь совсем без легенды — просто закомментируй следующую строку.
+        # ax.legend(loc="best")
+        self.tab_plan.canvas.draw()
 
         # ---- Курс
         ax = self.tab_yaw.ax
@@ -1108,16 +1115,12 @@ class MainWindow(QtWidgets.QMainWindow):
         ax = self.tab_step_yaw.ax
         ax.plot(steps.t_yaw, steps.yaw_deg, label="ψ(t)")
         ax.plot(steps.t_yaw, steps.yaw_ref, linestyle="--", label="ψ_ref")
-        # 5%-трубка
         ax.axhline(steps.yaw_band[0], linestyle="--", linewidth=1)
         ax.axhline(steps.yaw_band[1], linestyle="--", linewidth=1)
-        # Ts вертикаль + подпись
         if steps.yaw_Ts is not None:
             ax.axvline(steps.yaw_Ts, linestyle=":", linewidth=1)
-        # Заголовок сокращённый
         ax.set_title("Переходная по курсу")
         ax.set_xlabel("t, c"); ax.set_ylabel("ψ, °")
-        # Текст с метриками
         txt = f"Mp ≈ {steps.yaw_Mp_pct:.1f}%"
         if steps.yaw_Ts is not None:
             txt += f", Ts ≈ {steps.yaw_Ts:.2f} c"
@@ -1141,10 +1144,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_step_surge.canvas.draw()
 
         # Статус
+        starts = sum(1 for ev, _, _ in res.camera_events if ev == "START")
+        ends   = sum(1 for ev, _, _ in res.camera_events if ev == "END")
         self.statusBar().showMessage(
             f"L≈{(sum(math.hypot(res.xs[i+1]-res.xs[i], res.ys[i+1]-res.ys[i]) for i in range(len(res.xs)-1))):.1f} м; "
             f"W≈{res.meta['W_use']:.1f} м; lane≈{res.meta['lane_spacing']:.1f} м; "
-            f"s_ping≈{res.meta['s_ping']:.2f} м; dt_ping≈{res.meta['dt_ping']:.2f} c"
+            f"s_ping≈{res.meta['s_ping']:.2f} м; dt_ping≈{res.meta['dt_ping']:.2f} c; "
+            f"START={starts}, END={ends}"
         )
 
 
