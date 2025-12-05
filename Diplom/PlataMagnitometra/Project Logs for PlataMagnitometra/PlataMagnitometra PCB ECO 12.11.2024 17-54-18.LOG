@@ -1,0 +1,8 @@
+Change Component Comment : Designator=XP4 Old Comment=3PinConnector New Comment=Коннектор Micro-Latch, Signal, 2 мм, 1 ряд, 3 контактa
+Change Component Comment : Designator=XP3 Old Comment=6PinConnector New Comment=Коннектор Micro-Latch, Signal, 2 мм, 1 ряд, 6 контактов
+Change Component Comment : Designator=XP1 Old Comment=MolexMicroLatch New Comment=Коннектор JST Corporation, 2 мм, 1 ряд, 2 контактa
+Change Component Comment : Designator=ZQ1 Old Comment=Quartz_resonator New Comment=Резонатор кварцевый низкопрофильный 9.216 МГц SMT
+Change Component Description : Designator=XP1 Old Description=2 Pin Connector New Description=B2B-EH-A (LF)
+Change Component Description : Designator=XP4 Old Description=3PinConnector New Description=Коннектор Micro-Latch, Signal, 2 мм, 1 ряд, 3 контактa
+Change Component Description : Designator=XP3 Old Description=6PinConnector New Description=Коннектор Micro-Latch, Signal, 2 мм, 1 ряд, 6 контактов
+Add Pin To Net: Unknown Pin: Pin DA1-3

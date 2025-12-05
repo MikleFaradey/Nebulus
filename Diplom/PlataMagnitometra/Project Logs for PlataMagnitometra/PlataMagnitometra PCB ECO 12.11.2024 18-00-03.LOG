@@ -1,0 +1,26 @@
+Removed Pin From Net: NetName=Îáù_15Â Pin=DA1-4
+Removed Pin From Net: NetName=-15Â Pin=DA1-5
+Change Component Comment : Designator=DA1 Old Comment=DC/DC converter New Comment=DC/DC, 15Âò, Uâõ: 18-36Â, Uâûõ: 15ÂDC, Iâûõ: 500ìÀ
+Change Component Comment : Designator=DA2 Old Comment=TBA - 1 - double New Comment=DC/DC 1Âò, Uâõ 18-36Â, 5ÂDC, Iâûõ 200ìÀ
+Change Component Comment : Designator=DA3 Old Comment=TBA - 1 - double New Comment=DC/DC 1Âò, Uâõ 18-36Â, 5ÂDC, Iâûõ 200ìÀ
+Change Component Description : Designator=DA2 Old Description=DC/DC New Description=DC/DC 1Âò, Uâõ 18-36Â, 5ÂDC, Iâûõ 200ìÀ
+Change Component Description : Designator=DA3 Old Description=DC/DC New Description=DC/DC 1Âò, Uâõ 18-36Â, 5ÂDC, Iâûõ 200ìÀ
+Change Component Description : Designator=DA1 Old Description=DC/DC New Description=DC/DC, 15Âò, Uâõ: 18-36Â, Uâûõ: 15ÂDC, Iâûõ: 33ìÀ
+Change component parameters: Designator = "DA1" ("DA1"); Footprint = "TBA12411E"; UniqueID = "\KFRPGPTM" ("\KFRPGPTM")
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "TracoPower"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Model"; Value = "TBA 1-2423E"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ProductCode"; Value = "TBA1-2423E"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = ""; VariantName = "[No Variations]"
+Change component parameters: Designator = "DA2" ("DA2"); Footprint = "TRN1"; UniqueID = "\ZINKZDBU" ("\ZINKZDBU")
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "TracoPower"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Model"; Value = "TRN1-2411"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ProductCode"; Value = "TRN1-2411"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = ""; VariantName = "[No Variations]"
+Change component parameters: Designator = "DA3" ("DA3"); Footprint = "TRN1"; UniqueID = "\GRMJPRBM" ("\GRMJPRBM")
+Change component parameters (AddParameter): Name = "Manufacturer"; Value = "TracoPower"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Model"; Value = "TRN1-2411"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "ProductCode"; Value = "TRN1-2411"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Value"; Value = ""; VariantName = "[No Variations]"
+Added Pin To Net: NetName=+15Â Pin=DA1-4
+Added Pin To Net: NetName=Îáù_15Â Pin=DA1-5
+Added Pin To Net: NetName=-15Â Pin=DA1-6

@@ -1,0 +1,12 @@
+Added Component: Designator=C3(CAP0805)
+Add component (AddParameter): Name = "Accuracy"; Value = "±10%"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "CompType"; Value = "Конденсатор керамич."; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Foot"; Value = "0805"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Manufacturer"; Value = "Murata Electronics"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PowerVoltage"; Value = "50 В"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "ProductCode"; Value = "GRM21BR61A106KE19B"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Temperature"; Value = "X5R"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Value"; Value = "10 мкФ"; VariantName = "[No Variations]"
+Added Pin To Net: NetName=+27В Pin=C3-1
+Added Pin To Net: NetName=Общ_27В Pin=C3-2
+Added Member To Class: ClassName=PlataMagnitometra Member=Component C3 Конденсатор керамич. 50 В 10 мкФ Ом, ±10%, X5R SMD 0805

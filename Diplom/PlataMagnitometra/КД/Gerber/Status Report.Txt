@@ -1,0 +1,18 @@
+Output: Gerber Files
+Type  : Gerber
+From  : PCB Document [Kursovaya_rabota_2.PcbDoc]
+   Generated File[Kursovaya_rabota_2.GTO]
+   Generated File[Kursovaya_rabota_2.GTS]
+   Generated File[Kursovaya_rabota_2.GTL]
+   Generated File[Kursovaya_rabota_2.GBL]
+   Generated File[Kursovaya_rabota_2.GBS]
+   Generated File[Kursovaya_rabota_2.GBO]
+   Generated File[Kursovaya_rabota_2.RUL]
+   Generated File[Kursovaya_rabota_2.EXTREP]
+   Generated File[Kursovaya_rabota_2.REP]
+
+
+Files Generated   : 9
+Documents Printed : 0
+
+Finished Output Generation At 14:47:43 On 06.11.2024
